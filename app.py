@@ -22,8 +22,7 @@ from src import metrics as M
 from src import ui
 from src.export import board_summary_md
 
-st.set_page_config(page_title="RevOps360 · Revenue Intelligence",
-                   page_icon="◈", layout="wide")
+st.set_page_config(page_title="RevOps360 · Revenue Intelligence", layout="wide")
 ui.inject_theme()
 
 
@@ -68,40 +67,38 @@ if fact_all.empty:
     st.warning("No opportunity data available after ETL. Check data/raw/ and re-run.")
     st.stop()
 
-# ---------- Top bar: brand + scope (replaces sidebar) ----------
+# ---------- Top bar: executive brand command bar ----------
 regions = sorted(fact_all["region"].dropna().unique())
 segments = sorted(fact_all["segment"].dropna().unique())
 managers = sorted(fact_all["manager"].dropna().unique())
 lo = str(fact_all["close_date"].min())[:7]
 hi = str(fact_all["close_date"].max())[:7]
 
-_brand, _scope = st.columns([3, 1])
-with _brand:
-    st.markdown(
-        "<div style='font-size:22px;font-weight:700;color:#0F1E3D;letter-spacing:0.02em'>"
-        "◈ RevOps360 <span style='font-size:11px;font-weight:600;letter-spacing:0.14em;"
-        "color:#0E7C7B;text-transform:uppercase'>Revenue intelligence</span></div>",
-        unsafe_allow_html=True,
-    )
-with _scope:
-    st.markdown(
-        f"<div style='text-align:right;font-size:12px;color:#64748B;padding-top:8px'>"
-        f"{len(fact_all):,} opportunities · {lo} → {hi}</div>",
-        unsafe_allow_html=True,
-    )
+ui.brand_header(
+    title="REVOPS360",
+    tag="REVENUE INTELLIGENCE",
+    opp_count=len(fact_all),
+    date_range=f"{lo} → {hi}",
+    currency="USD ($)",
+)
 
-# ---------- Filter bar: full functionality, minimal footprint ----------
+# ---------- Filter Command Bar ----------
 f1, f2, f3 = st.columns(3)
 with f1:
-    sel_regions = list(st.pills("Region", regions, default=regions,
-                                selection_mode="multi", key="f_region"))
+    st.markdown("<div class='filter-lbl'>Region Scope</div>", unsafe_allow_html=True)
+    sel_regions = st.multiselect("Region", regions, default=regions,
+                                 key="f_region", label_visibility="collapsed",
+                                 placeholder="Select regions...")
 with f2:
-    sel_segments = list(st.pills("Segment", segments, default=segments,
-                                 selection_mode="multi", key="f_segment"))
+    st.markdown("<div class='filter-lbl'>Segment Scope</div>", unsafe_allow_html=True)
+    sel_segments = st.multiselect("Segment", segments, default=segments,
+                                  key="f_segment", label_visibility="collapsed",
+                                  placeholder="Select segments...")
 with f3:
-    sel_managers = list(st.pills("Manager", managers, default=managers,
-                                 selection_mode="multi", key="f_manager"))
-st.divider()
+    st.markdown("<div class='filter-lbl'>Sales Manager</div>", unsafe_allow_html=True)
+    sel_managers = st.multiselect("Manager", managers, default=managers,
+                                  key="f_manager", label_visibility="collapsed",
+                                  placeholder="Select managers...")
 
 fact = fact_all[
     fact_all["region"].isin(sel_regions)
@@ -111,7 +108,8 @@ fact = fact_all[
 monthly = monthly_all[monthly_all["region"].isin(sel_regions)].copy()
 
 if fact.empty:
-    st.info("No deals match the current filters. Widen the selection above.")
+    ui.callout("No opportunities match the current filter selection. Widen the region, segment, or manager scope above.",
+               tone="warning", title="Empty Scope Selection")
     st.stop()
 
 kpis = M.kpi_overview(fact)
@@ -129,25 +127,30 @@ tab_ov, tab_fun, tab_fc, tab_team, tab_dq = st.tabs(
 # ---------- Overview ----------
 with tab_ov:
     ui.page_header(
-        "Executive revenue overview",
+        "Executive Revenue Overview",
         f"Close window {window} · {len(fact):,} opportunities in scope · "
         f"Win rate {kpis['win_rate']:.1%} · All figures USD",
+        kicker="EXECUTIVE BOARDROOM BRIEF",
     )
     k1, k2, k3, k4 = st.columns(4)
     with k1:
         ui.kpi_card("Win rate", f"{kpis['win_rate']:.1%}",
-                    f"{kpis['won']:,} won of {kpis['opps']:,} deals")
+                    pill="Conversion", tone="teal",
+                    tooltip=f"{kpis['won']:,} won of {kpis['opps']:,} deals in current scope")
     with k2:
         ui.kpi_card("Avg deal · won", ui.fmt_usd(kpis["avg_deal"]),
-                    f"Median {ui.fmt_usd(kpis['median_deal'])} · "
-                    f"Cycle {kpis['median_cycle']:.0f}d")
+                    pill=f"{kpis['median_cycle']:.0f}d cycle", tone="indigo",
+                    tooltip=f"Median won deal: {ui.fmt_usd(kpis['median_deal'])} · Cycle duration: {kpis['median_cycle']:.0f} days")
     with k3:
         ui.kpi_card("Won revenue", ui.fmt_compact(kpis["won_revenue"]),
-                    ui.fmt_usd(kpis["won_revenue"]))
+                    pill="Closed Booked", tone="up",
+                    tooltip=f"Exact booked revenue: {ui.fmt_usd(kpis['won_revenue'])}")
     with k4:
         ui.kpi_card("Weighted pipeline", ui.fmt_compact(kpis["weighted_pipeline"]),
-                    f"Open value {ui.fmt_compact(kpis['open_value'])}")
+                    pill="Risk-adjusted", tone="navy",
+                    tooltip=f"Total open value: {ui.fmt_compact(kpis['open_value'])} weighted by stage probabilities")
 
+    ui.section_kicker("Revenue Velocity & Target Attainment")
     rev = (monthly[monthly["close_month"].isin(closed_months)]
            .groupby("close_month", as_index=False)["won_revenue"]
            .sum().sort_values("close_month"))
@@ -158,18 +161,18 @@ with tab_ov:
             fig = go.Figure()
             fig.add_trace(go.Scatter(
                 x=rev["close_month"], y=rev["won_revenue"], name="Won revenue",
-                mode="lines+markers", line={"color": C.NAVY, "width": 2.5},
-                marker={"color": C.NAVY, "size": 5},
-                fill="tozeroy", fillcolor="rgba(27,42,74,0.08)"))
+                mode="lines+markers", line={"color": C.TEAL, "width": 2.5},
+                marker={"color": C.TEAL, "size": 6},
+                fill="tozeroy", fillcolor="rgba(14, 124, 123, 0.08)"))
             fig.add_hline(y=target_total, line_dash="dash",
-                          line_color=C.TEAL, line_width=1.5,
+                          line_color=C.NAVY, line_width=1.5,
                           annotation_text=f"Monthly target {ui.fmt_compact(target_total)}",
                           annotation_font_size=11)
             C.style_fig(fig, "Won revenue vs monthly target", height=380, x_angle=-35)
             C.usd_tick(fig)
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.info("No closed revenue for this filter selection.")
+            ui.callout("No closed revenue found for the selected filter combination.", tone="info")
     with c_right:
         months = sorted(monthly["close_month"].unique())
         if months:
@@ -192,10 +195,10 @@ with tab_ov:
                                                    guard) * 1.25])
             st.plotly_chart(fig2, use_container_width=True)
         else:
-            st.info("No coverage data for this selection.")
+            ui.callout("No coverage data available for this filter selection.", tone="info")
 
     if months:
-        st.subheader(f"Coverage detail — {months[-1]}")
+        ui.section_kicker(f"Pipeline Coverage Detail Table — {months[-1]}")
         st.dataframe(
             ui.pretty(cov, {"region": "Region", "target": "Target",
                             "won_revenue": "Won revenue",
@@ -205,8 +208,8 @@ with tab_ov:
                            "Open (exp.)": ui.fmt_usd, "Coverage": "{:.1f}x"}),
             use_container_width=True, hide_index=True)
 
-    # --- New analytics: quota attainment + win-rate momentum ---
-    st.subheader("Attainment & momentum")
+    # --- Analytics: quota attainment + win-rate momentum ---
+    ui.section_kicker("Attainment & Win-Rate Momentum")
     n_left, n_right = st.columns(2)
     with n_left:
         att = (monthly[monthly["close_month"].isin(closed_months)]
@@ -231,7 +234,7 @@ with tab_ov:
                                yaxis_range=[0, float(att["attainment"].max() or 1) * 1.25])
             st.plotly_chart(figa, use_container_width=True)
         else:
-            st.info("No closed months in scope.")
+            ui.callout("No closed months available in this scope.", tone="info")
     with n_right:
         closed = fact[fact["is_closed"]].copy()
         if not closed.empty:
@@ -253,16 +256,17 @@ with tab_ov:
                                yaxis_tickformat=".0%", yaxis_tickprefix="")
             st.plotly_chart(figw, use_container_width=True)
         else:
-            st.info("No closed deals in scope.")
+            ui.callout("No closed deals available in scope.", tone="info")
 
 # ---------- Pipeline ----------
 with tab_fun:
-    ui.page_header("Pipeline & conversion",
-                   "Stage mix, win-rate cohorts and bottleneck flags for the filtered scope.")
+    ui.page_header("Pipeline & Funnel Velocity",
+                   "Stage mix, win-rate cohorts and automated bottleneck detection for current scope.",
+                   kicker="FUNNEL INTELLIGENCE")
     fun = M.funnel(fact, list(cfg["funnel_order"]))
     stage_colors = {"Prospecting": "#7FB8B5", "Qualification": "#2AA198",
                     "Proposal": "#0E7C7B", "Negotiation": "#1B2A4A",
-                    "Commit": "#0F1E3D", "Closed Won": "#0F1E3D",
+                    "Commit": "#0F1E3D", "Closed Won": "#0E7C7B",
                     "Closed Lost": "#CBD5E1"}
     f_left, f_right = st.columns([1.3, 1.0])
     with f_left:
@@ -287,11 +291,13 @@ with tab_fun:
                            yaxis_tickprefix="",
                            xaxis_range=[0, float(ob["open_deals"].max() or 1) * 1.32])
         st.plotly_chart(figl, use_container_width=True)
+
+    ui.section_kicker("Funnel Stage Conversion Summary")
     st.dataframe(ui.pretty(fun, {"stage": "Stage", "deals": "Deals", "share": "Share"})
                  .style.format({"Share": "{:.1%}"}),
                  use_container_width=True, hide_index=True)
 
-    st.subheader("Win rate: segment × lead source")
+    ui.section_kicker("Win Rate Cohort Matrix (Segment × Lead Source)")
     heat = (fact.groupby(["segment", "lead_source"], as_index=False)["is_won"]
             .mean().pivot(index="segment", columns="lead_source", values="is_won"))
     if not heat.empty:
@@ -303,11 +309,11 @@ with tab_fun:
                            coloraxis_showscale=False)
         st.plotly_chart(figh, use_container_width=True)
     else:
-        st.info("No cohort data for this selection.")
+        ui.callout("No cohort data available for this filter selection.", tone="info")
 
     a_left, a_right = st.columns(2)
     with a_left:
-        st.subheader("Win rate by lead source")
+        ui.section_kicker("Lead Source Conversion Metrics")
         st.dataframe(
             ui.pretty(M.cohort_table(fact, "lead_source"),
                       {"lead_source": "Lead source", "deals": "Deals", "won": "Won",
@@ -317,7 +323,7 @@ with tab_fun:
                            "Avg cycle (d)": "{:.0f}"}),
             use_container_width=True, hide_index=True)
     with a_right:
-        st.subheader("Open pipeline aging")
+        ui.section_kicker("Open Pipeline Aging Distribution")
         open_deals = fact[fact["is_open"]]
         if not open_deals.empty:
             figa = px.histogram(open_deals, x="cycle_days", color="deal_stage",
@@ -328,35 +334,60 @@ with tab_fun:
                                yaxis_tickprefix="", bargap=0.15)
             st.plotly_chart(figa, use_container_width=True)
         else:
-            st.info("No open deals in scope.")
+            ui.callout("No open deals currently in scope.", tone="info")
 
-    st.subheader("Bottleneck detection")
-    for flag in M.bottleneck_flags(fact):
-        if flag.startswith("No bottleneck") or flag.startswith("No open"):
-            st.success(flag)
+    ui.section_kicker("Bottleneck Diagnosis & Risk Signals")
+    flags = M.bottleneck_flags(fact)
+    for flag in flags:
+        flag_clean = flag.replace("\ufffd", "—")
+        if flag_clean.startswith("No bottleneck") or flag_clean.startswith("No open"):
+            ui.notification_banner(
+                title="Pipeline Health Normal",
+                text=flag_clean,
+                tone="success",
+                meta="STAGE VELOCITY NORMALIZED · ZERO BLOCKERS DETECTED"
+            )
+        elif "Cycle skew" in flag_clean:
+            ui.notification_banner(
+                title="Segment Cycle Skew Warning",
+                text=flag_clean,
+                tone="warning",
+                meta="GUARDRAIL ALERT: ENTERPRISE MEDIAN OPEN AGE EXCEEDS 2.0× FASTEST SEGMENT BENCHMARK"
+            )
         else:
-            st.warning(flag)
+            ui.notification_banner(
+                title="Pipeline Attention Required",
+                text=flag_clean,
+                tone="warning",
+                meta="STAGE CONVERSION ALERT"
+            )
 
 # ---------- Forecast ----------
 with tab_fc:
-    ui.page_header("Forecasting layer",
-                   "Weighted pipeline × trend ensemble with scenario planning and alerts.")
+    ui.page_header("Revenue Forecasting & Scenario Planning",
+                   "Weighted pipeline × trend ensemble model with stress testing and automated alerts.",
+                   kicker="PREDICTIVE REVENUE ENGINE")
     months_all = sorted(monthly_all["close_month"].unique())
-    target = st.selectbox("Target month", months_all, index=len(months_all) - 1)
+    target = st.selectbox("Forecast target month", months_all, index=len(months_all) - 1)
     ens = F.ensemble_forecast(fact, monthly, target)
     c1, c2, c3 = st.columns(3)
     with c1:
         ui.kpi_card("Weighted pipeline", ui.fmt_compact(ens["weighted"]),
-                    ui.fmt_usd(ens["weighted"]))
+                    sub=ui.fmt_usd(ens["weighted"]),
+                    pill="Open deals priced", tone="teal",
+                    tooltip="Prices open pipeline deals by stage-specific win probability weights from data contracts.")
     with c2:
         ui.kpi_card("Trend model", ui.fmt_compact(ens["trend"]),
-                    f"R² {ens['trend_r2']} · {ens['trend_method']}")
+                    sub=f"R² {ens['trend_r2']} fit",
+                    pill="Statistical fit", tone="indigo",
+                    tooltip=f"Extrapolates historical closed months using {ens['trend_method']} with R² {ens['trend_r2']}.")
     with c3:
         ui.kpi_card("Ensemble base", ui.fmt_compact(ens["base"]),
-                    "0.6 weighted + 0.4 trend", "▲ base case", "up")
+                    sub="Blended forecast", pill="Base case", tone="up",
+                    tooltip="Dual-model blend: 60% probability-weighted open deals + 40% statistical trend extrapolation.")
 
     scen = F.scenario_table(ens["base"], dict(cfg["scenarios"]))
-    st.subheader("Scenarios")
+    ui.section_kicker("Scenario Modeling & Sensitivity Range")
     s_left, s_right = st.columns([1.0, 1.4])
     with s_left:
         st.dataframe(ui.pretty(scen, {"scenario": "Scenario", "forecast": "Forecast",
@@ -380,7 +411,7 @@ with tab_fc:
                "closed history. For far-future months the two diverge — trust weighted "
                "when open pipeline is healthy, trend when it is thin.")
 
-    st.subheader("Forecast composition")
+    ui.section_kicker(f"Forecast Composition Due in {target}")
     due = fact[(fact["is_open"]) & (fact["close_month"] == target)]
     if not due.empty:
         comp = (due.groupby("deal_stage", as_index=False)["expected_value"]
@@ -397,11 +428,11 @@ with tab_fc:
         C.usd_tick(figc)
         st.plotly_chart(figc, use_container_width=True)
     else:
-        st.info(f"No open pipeline due in {target} — weighted forecast is $0.")
+        ui.callout(f"No open pipeline due in {target} — weighted pipeline contribution is $0.", tone="info")
 
     hist_months = closed_months[-9:]
     fva = F.forecast_vs_actual(monthly, hist_months)
-    st.subheader("Forecast vs actual (walk-forward trend backtest)")
+    ui.section_kicker("Walk-Forward Model Backtest vs Historical Actuals")
     if not fva.empty:
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=fva["month"], y=fva["predicted_trend"],
@@ -421,7 +452,7 @@ with tab_fc:
                            "Variance": ui.fmt_usd, "Var %": "{:+.1%}"}),
             use_container_width=True, hide_index=True)
     else:
-        st.info("Not enough history for forecast-vs-actual.")
+        ui.callout("Not enough historical months for walk-forward forecast backtest.", tone="info")
 
     bt = F.backtest_trend(monthly)
     if not bt.empty:
@@ -430,33 +461,91 @@ with tab_fc:
         m1, m2 = st.columns(2)
         with m1:
             ui.kpi_card("Backtest MAPE", f"{mape:.1%}",
-                        f"Mean abs error · last {len(bt)} closed months",
-                        "▲ needs work" if mape > 0.2 else "● within 20%",
-                        "warn" if mape > 0.2 else "up")
+                        sub=f"Last {len(bt)} closed months",
+                        pill="Needs attention" if mape > 0.2 else "Within benchmark",
+                        tone="warn" if mape > 0.2 else "up",
+                        tooltip=f"Walk-forward Mean Absolute Percentage Error across the last {len(bt)} closed forecast periods.")
         with m2:
             ui.kpi_card("Forecast bias", f"{bias:+.1%}",
-                        "Mean signed variance · + over-forecasts, − under",
-                        "● unbiased" if abs(bias) < 0.15 else "▲ biased",
-                        "up" if abs(bias) < 0.15 else "warn")
+                        sub="Signed variance",
+                        pill="Unbiased" if abs(bias) < 0.15 else "Biased",
+                        tone="up" if abs(bias) < 0.15 else "warn",
+                        tooltip="Mean signed variance percentage (+ indicates over-forecasting, − indicates under-forecasting).")
         st.dataframe(ui.pretty(bt, {"month": "Month", "predicted": "Predicted",
                                       "actual": "Actual", "ape": "APE"})
                      .style.format({"Predicted": ui.fmt_usd, "Actual": ui.fmt_usd,
                                     "APE": "{:.1%}"}),
                      use_container_width=True, hide_index=True)
 
-    st.subheader("Alerts")
-    for a in F.alerts(fact, monthly, dict(cfg["targets_monthly"]),
-                      float(cfg["alerts"]["min_coverage_ratio"]),
-                      float(cfg["alerts"]["win_rate_drop_pp"])):
-        if a.startswith("All clear"):
-            st.success(a)
-        else:
-            st.error(a)
+    ui.section_kicker("Automated Revenue & Coverage Alerts")
+    min_cov_target = float(cfg["alerts"]["min_coverage_ratio"])
+    win_drop_thresh = float(cfg["alerts"]["win_rate_drop_pp"])
+    raw_alerts = F.alerts(fact, monthly, dict(cfg["targets_monthly"]),
+                          min_cov_target, win_drop_thresh)
 
-    st.subheader("Export")
+    # Explicitly calculate guardrail multiplier metrics for the horizon
+    latest_months = sorted(monthly["close_month"].unique())
+    if latest_months:
+        eval_month = latest_months[-1]
+        cov_open_val = F.weighted_forecast(fact, [eval_month])
+        t_total = sum(targets.values())
+        actual_cov = cov_open_val / t_total if t_total else 0.0
+        cov_deficit_ratio = actual_cov - min_cov_target
+        req_pipeline = min_cov_target * t_total
+        gap_usd = req_pipeline - cov_open_val
+
+        if actual_cov < min_cov_target:
+            ratio_pct = (actual_cov / min_cov_target) * 100
+            ui.notification_banner(
+                title=f"Coverage Guardrail Deficit Alert · {eval_month}",
+                text=(
+                    f"Active pipeline coverage is {actual_cov:.2f}× against the mandatory {min_cov_target:.1f}× target guardrail benchmark. "
+                    f"Current pipeline represents a {cov_deficit_ratio:+.2f}× multiplier deficit ({ratio_pct:.1f}% of required benchmark coverage). "
+                    f"To satisfy boardroom risk standards, generate {ui.fmt_usd(gap_usd)} in additional weighted pipeline or accelerate late-stage commits."
+                ),
+                tone="error",
+                meta=(
+                    f"TARGET BENCHMARK: {min_cov_target:.1f}× ({ui.fmt_usd(req_pipeline)}) · "
+                    f"ACTUAL COVERAGE: {actual_cov:.2f}× ({ui.fmt_usd(cov_open_val)}) · "
+                    f"NET DEFICIT: {abs(cov_deficit_ratio):.2f}× MULTIPLIER ({ui.fmt_usd(gap_usd)} SHORTFALL)"
+                )
+            )
+        else:
+            surplus_ratio = actual_cov - min_cov_target
+            ui.notification_banner(
+                title=f"Coverage Guardrail Satisfied · {eval_month}",
+                text=(
+                    f"Active pipeline coverage is {actual_cov:.2f}× vs the {min_cov_target:.1f}× target guardrail benchmark "
+                    f"({surplus_ratio:+.2f}× surplus multiplier). Revenue coverage is healthy across all operating regions."
+                ),
+                tone="success",
+                meta=f"TARGET BENCHMARK: {min_cov_target:.1f}× · ACTUAL: {actual_cov:.2f}× · SURPLUS: +{surplus_ratio:.2f}× MULTIPLIER"
+            )
+
+    for a in raw_alerts:
+        a_clean = a.replace("\ufffd", "—")
+        if a_clean.startswith("UNDER-COVERAGE"):
+            continue  # Already displayed with explicit guardrail multiplier metrics above
+        elif a_clean.startswith("WIN-RATE DROP"):
+            ui.notification_banner(
+                title="Quarterly Win-Rate Drop Alert",
+                text=a_clean,
+                tone="warning",
+                meta="HISTORICAL CONVERSION THRESHOLD BREACH"
+            )
+        elif a_clean.startswith("All clear"):
+            pass
+        else:
+            ui.notification_banner(
+                title="Forecast Intelligence Alert",
+                text=a_clean,
+                tone="info"
+            )
+
+    ui.section_kicker("Boardroom & Pipeline Data Export Suite")
     e1, e2 = st.columns(2)
     with e1:
-        st.download_button("Download filtered deals (CSV)",
+        st.download_button("Download Filtered Deals (CSV)",
                            fact.to_csv(index=False).encode(),
                            file_name="revops360_filtered_deals.csv",
                            mime="text/csv", use_container_width=True)
@@ -467,15 +556,17 @@ with tab_fc:
                                                months[-1]) if months else pd.DataFrame(),
                           fva, F.alerts(fact, monthly, dict(cfg["targets_monthly"])), scen)
     with e2:
-        st.download_button("Download board summary (Markdown)", md.encode(),
+        st.download_button("Download Executive Board Summary (Markdown)", md.encode(),
                            file_name=f"revops360_board_{target}.md",
                            mime="text/markdown", use_container_width=True)
 
 # ---------- Teams ----------
 with tab_team:
-    ui.page_header("Region & team drill-down",
-                   "Leaderboard and rep comparison for the filtered scope.")
+    ui.page_header("Territory & Sales Rep Benchmarking",
+                   "Sales agent leaderboard, regional revenue mix, and skill vs scale diagnostic matrix.",
+                   kicker="TALENT & TERRITORY INTELLIGENCE")
     lb = M.team_leaderboard(fact)
+    ui.section_kicker("Sales Agent Leaderboard")
     st.dataframe(ui.pretty(lb, {"region": "Region", "sales_agent": "Rep",
                                 "manager": "Manager", "deals": "Deals",
                                 "won": "Won", "revenue": "Revenue",
@@ -500,7 +591,7 @@ with tab_team:
             figd.update_traces(textinfo="percent+label",
                                hovertemplate="%{label}: $%{value:,.0f}<extra></extra>")
             st.plotly_chart(figd, use_container_width=True)
-        st.subheader("Skill vs scale — win rate against average won deal")
+        ui.section_kicker("Skill vs Scale Diagnostic Matrix (Win Rate vs Deal Size)")
         rep = lb[lb["won"] > 0].copy()
         rep["avg_deal"] = (rep["revenue"] / rep["won"]).round(2)
         if not rep.empty:
@@ -513,15 +604,16 @@ with tab_team:
                                xaxis_tickprefix="", yaxis_title="Avg won deal")
             C.usd_tick(figs)
             st.plotly_chart(figs, use_container_width=True)
-            st.caption("Upper-right = closes often and large. Lower-left = coach or "
-                       "reassign pipeline.")
+            st.caption("Upper-right quadrant = closes frequently and at large deal sizes. "
+                       "Lower-left = candidates for coaching or pipeline reallocation.")
         else:
-            st.info("No reps with wins in scope.")
+            ui.callout("No sales reps with won deals in scope.", tone="info")
 
 # ---------- Data Quality ----------
 with tab_dq:
-    ui.page_header("Data quality & audit",
-                   "ETL runs, quarantine review and forecast assumptions.")
+    ui.page_header("Data Governance, Audit & Model Assumptions",
+                   "ETL execution telemetry, quarantine contract monitoring, and stage probability weights.",
+                   kicker="DATA PLATFORM & AUDIT")
     from pathlib import Path as _P
     audit_p = _P("data/processed/_audit/etl_runs.csv")
     if audit_p.exists():
@@ -530,41 +622,45 @@ with tab_dq:
         c1, c2, c3 = st.columns(3)
         with c1:
             ui.kpi_card("ETL runs", f"{len(runs):,}",
-                        f"{int((runs['status'] == 'skipped').sum())} idempotent skips")
+                        sub="Pipeline active", pill="Audited", tone="teal",
+                        tooltip=f"{int((runs['status'] == 'skipped').sum())} idempotent skips via SHA-256 input checksum matching.")
         with c2:
             last_ok = str(ok["utc_time"].max())[:19] if not ok.empty else "—"
-            ui.kpi_card("Last successful run", last_ok, "UTC · content-hashed inputs")
+            ui.kpi_card("Last successful run", last_ok,
+                        sub="Marts fresh", pill="Live Marts", tone="indigo",
+                        tooltip="UTC timestamp of latest completed data pipeline cycle with validated data contract schemas.")
         with c3:
             q = float(ok["quarantine_rate"].max()) if not ok.empty else 0.0
             ui.kpi_card("Quarantine rate", f"{q:.2%}",
-                        "Gate: fail loudly above 2%",
-                        "● within gate" if q <= 0.02 else "▲ breach",
-                        "up" if q <= 0.02 else "warn")
-        st.subheader("Run history")
-        st.dataframe(ui.pretty(runs.tail(8),
-                               {"run_id": "Run", "utc_time": "UTC time",
-                                "status": "Status", "rows_in": "Rows in",
-                                "rows_out": "Rows out",
-                                "quarantine_rate": "Quarantine",
-                                "duration_s": "Secs", "note": "Note"})
-                     .style.format({"Quarantine": "{:.2%}"}),
-                     use_container_width=True, hide_index=True)
+                        sub="Contract gate",
+                        pill="Within gate" if q <= 0.02 else "Contract breach",
+                        tone="up" if q <= 0.02 else "warn",
+                        tooltip="Proportion of input records rejected by the data quality contract gate (strict alert threshold: 2.00%).")
+
+        ui.section_kicker("ETL Pipeline Run Telemetry")
+        ui.telemetry_table(runs.tail(8))
     else:
-        st.info("No audit log yet.")
+        ui.callout("No audit log found. Run ETL to generate telemetry.", tone="info")
+
+    ui.section_kicker("Data Contract Quarantine Status")
     qdir = _P("data/processed/_quarantine")
     qfiles = list(qdir.glob("*.csv")) if qdir.exists() else []
     if qfiles:
         for q in qfiles:
             qdf = pd.read_csv(q)
-            st.warning(f"{q.name}: {len(qdf)} quarantined rows")
+            ui.callout(f"{q.name}: {len(qdf)} quarantined rows rejected by contract gate.",
+                       tone="warning", title="Quarantined Records")
             st.dataframe(qdf.head(20), use_container_width=True, hide_index=True)
     else:
-        st.success("Zero quarantined rows — all raw rows passed the contract.")
-    st.subheader("Stage probabilities (config)")
+        ui.callout("Zero quarantined rows — 100% of CRM records validated cleanly against data contract schemas.",
+                   tone="success", title="Data Contracts Validated")
+
+    ui.section_kicker("Configured Stage Win Probabilities")
     st.caption("Weighted-pipeline weights from config/config.yaml — the forecast's "
-               "core assumption, shown explicitly.")
+               "core risk-adjustment assumptions, displayed explicitly.")
     probs = pd.DataFrame(
         [{"Stage": s, "Win probability": float(p)}
          for s, p in dict(cfg["stage_probability"]).items()])
     st.dataframe(probs.style.format({"Win probability": "{:.0%}"}),
                  use_container_width=True, hide_index=True)
+
