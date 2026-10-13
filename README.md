@@ -1,5 +1,12 @@
 # RevOps360 · Revenue Intelligence & Forecasting Suite
 
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://revops360.streamlit.app/)
+![Python Version](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.14-3776AB?logo=python&logoColor=white)
+![Data Contracts](https://img.shields.io/badge/Validation-Pydantic%20v2-E92063?logo=pydantic&logoColor=white)
+![License](https://img.shields.io/badge/License-Apache%202.0-0E7C7B)
+
+> 🚀 **Live Production Dashboard:** [https://revops360.streamlit.app/](https://revops360.streamlit.app/)
+
 **RevOps360** is a production-grade sales pipeline analytics, forecasting, and data governance platform built with Python, Pydantic, Plotly, and Streamlit. It delivers deterministic CRM data modeling, contract-enforced ETL pipelines, dual-model ensemble forecasting, and an executive-ready enterprise dashboard.
 
 ---
@@ -84,7 +91,10 @@ Open [http://localhost:8501](http://localhost:8501) in your browser.
 
 ## Deployment to Streamlit Cloud
 
-RevOps360 is designed for zero-configuration deployment to **Streamlit Community Cloud**:
+RevOps360 is deployed live on **Streamlit Community Cloud** at:  
+👉 **[https://revops360.streamlit.app/](https://revops360.streamlit.app/)**
+
+To deploy your own fork or instance with zero configuration:
 
 1. **Push to GitHub:** Ensure your latest commits are pushed to your remote repository:
    ```bash
