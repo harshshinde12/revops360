@@ -1,0 +1,10 @@
+__pycache__/
+.pytest_cache/
+.venv/
+venv/
+data/raw/
+data/staging/
+data/processed/
+screenshots/
+*.pyc
+.DS_Store

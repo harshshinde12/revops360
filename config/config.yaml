@@ -1,0 +1,59 @@
+# RevOps360 — single source of truth for business logic. No magic numbers in code.
+generator:
+  seed: 42
+  version: "1.0.0"
+  start_date: "2023-01-01"
+  end_date: "2024-12-31"
+  n_opportunities: 2600
+  n_accounts: 320
+  n_reps: 16
+
+# 7-stage normalized funnel (matches Salesforce/HubSpot mapping in docs/data_contract.md)
+stage_probability:
+  Prospecting: 0.10
+  Qualification: 0.25
+  Proposal: 0.55
+  Negotiation: 0.80
+  Commit: 0.92
+  Closed Won: 1.0
+  Closed Lost: 0.0
+
+funnel_order:
+  - Prospecting
+  - Qualification
+  - Proposal
+  - Negotiation
+  - Commit
+  - Closed Won
+  - Closed Lost
+
+open_stages:
+  - Prospecting
+  - Qualification
+  - Proposal
+  - Negotiation
+  - Commit
+
+# Monthly revenue targets by region (USD). Used for coverage + alerts.
+targets_monthly:
+  West: 95000.0
+  East: 85000.0
+  Central: 75000.0
+  South: 70000.0
+
+scenarios:
+  conservative: 0.8
+  base: 1.0
+  aggressive: 1.2
+
+# Data-quality guardrails (industry: fail loudly, don't silently corrupt)
+quality:
+  max_quarantine_rate: 0.02
+  min_win_rate: 0.0
+  max_win_rate: 1.0
+  min_close_value: 100.0
+  max_close_value: 500000.0
+
+alerts:
+  min_coverage_ratio: 3.0
+  win_rate_drop_pp: 10.0
